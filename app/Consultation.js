@@ -1,158 +1,171 @@
-import React from 'react';
-import { StyleSheet, View, Text, Image, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
-
-const AppointmentCard = ({ doctor, specialty, date, isPast, onButtonPress }) => (
-  <View style={[styles.card, isPast && styles.pastCard]}>
-    <Image source={require('../assets/images/woman-1.png')} style={styles.doctorImage} />
-    <View style={styles.cardContent}>
-      <Text style={styles.doctorName}>{doctor}</Text>
-      <Text style={styles.specialty}>{specialty}</Text>
-      <Text style={styles.date}>{date}</Text>
-    </View>
-    <TouchableOpacity style={[styles.button, isPast ? styles.rescheduleButton : styles.cancelButton]} onPress={onButtonPress}>
-      <Text style={styles.buttonText}>{isPast ? 'Agendar consulta' : 'Cancelar'}</Text>
-    </TouchableOpacity>
-  </View>
-);
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, Image, SafeAreaView, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { useDatabase } from './database/useDatabase';
 
 export default function Consultation() {
+  const { fetchAppointmentsByUser } = useDatabase();
+  const [appointments, setAppointments] = useState([]);
+
+  useEffect(() => {
+    loadAppointments();
+  }, []);
+
+  const loadAppointments = async () => {
+    // Substitua `1` pelo ID do usuário logado
+    const userAppointments = await fetchAppointmentsByUser(1);
+    setAppointments(userAppointments);
+  };
+
+  const renderAppointment = ({ item }) => (
+    <View style={[styles.appointmentCard, item.isPast && styles.pastCard]}>
+      <Text style={styles.appointmentDoctor}>{item.doctorName} - {item.specialty}</Text>
+      <Text style={styles.appointmentDate}>{new Date(item.date).toLocaleDateString()}</Text>
+      <TouchableOpacity style={styles.cancelButton} onPress={() => handleCancel(item.id)}>
+        <Text style={styles.cancelButtonText}>{item.isPast ? 'Agendar nova consulta' : 'Cancelar'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const handleCancel = (appointmentId) => {
+    // Navegar ou abrir modal para confirmar cancelamento
+    Alert.alert(
+      'Cancelar Consulta',
+      'Deseja realmente cancelar esta consulta?',
+      [
+        { text: 'Não', style: 'cancel' },
+        { text: 'Sim', onPress: () => {/* Implementar cancelamento */} },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Minhas consultas</Text>
+      <View style={styles.content}>
+        <Text style={styles.title}>Meu perfil</Text>
         
-        <TouchableOpacity style={styles.scheduleButton}>
-          <Text style={styles.scheduleButtonText}>Agendar outra consulta</Text>
-        </TouchableOpacity>
-        
-        <Text style={styles.sectionTitle}>Próximas consultas</Text>
-        <AppointmentCard 
-          doctor="Dra. Ana Lúcia"
-          specialty="Angiologista"
-          date="03/03/2023"
-          isPast={false}
-          onButtonPress={() => console.log('Cancel appointment')}
+        <Image
+          source={require('../assets/images/woman-1.png')}
+          style={styles.profileImage}
         />
         
-        <Text style={styles.sectionTitle}>Consultas passadas</Text>
-        <AppointmentCard 
-          doctor="Dra. Ana Lúcia"
-          specialty="Angiologista"
-          date="01/02/2022"
-          isPast={true}
-          onButtonPress={() => console.log('Reschedule appointment')}
-        />
-        <AppointmentCard 
-          doctor="Dr. Paulo Matos"
-          specialty="Otorrinolaringologista"
-          date="09/08/2022"
-          isPast={true}
-          onButtonPress={() => console.log('Reschedule appointment')}
-        />
-        <AppointmentCard 
-          doctor="Dra. Mariana Luz"
-          specialty="Mastologista"
-          date="07/10/2022"
-          isPast={true}
-          onButtonPress={() => console.log('Reschedule appointment')}
-        />
-      </ScrollView>
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionTitle}>Informações pessoais</Text>
+          <Text style={styles.name}>Joana Magalhães Souza</Text>
+          <Text style={styles.details}>28/05/1990</Text>
+          <Text style={styles.details}>São Paulo-SP</Text>
+        </View>
+        
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionTitle}>Histórico médico</Text>
+          <View style={styles.medicalList}>
+            <Text style={styles.medicalItem}>• Bronquite</Text>
+            <Text style={styles.medicalItem}>• Sinusite</Text>
+          </View>
+        </View>
+
+        {/* Consultas do Usuário */}
+        <View style={styles.appointmentsSection}>
+          <Text style={styles.sectionTitle}>Minhas Consultas</Text>
+          {appointments.length > 0 ? (
+            <FlatList
+              data={appointments}
+              renderItem={renderAppointment}
+              keyExtractor={(item) => item.id.toString()}
+            />
+          ) : (
+            <Text style={styles.noAppointmentsText}>Você não tem consultas agendadas.</Text>
+          )}
+        </View>
+      </View>
     </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#fff',
   },
-  scrollContent: {
+  content: {
+    flex: 1,
+    alignItems: 'center',
     padding: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#4A90E2',
     marginBottom: 20,
   },
-  scheduleButton: {
-    backgroundColor: '#003366',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     marginBottom: 20,
   },
-  scheduleButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+  infoSection: {
+    width: '100%',
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginTop: 20,
+    color: '#4A90E2',
     marginBottom: 10,
   },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 8,
+  name: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  details: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 3,
+  },
+  medicalList: {
+    marginLeft: 10,
+  },
+  medicalItem: {
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  appointmentsSection: {
+    width: '100%',
+    marginTop: 20,
+  },
+  appointmentCard: {
+    backgroundColor: '#f9f9f9',
     padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: 8,
     marginBottom: 10,
   },
   pastCard: {
     backgroundColor: '#e6f2ff',
   },
-  doctorImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 15,
-  },
-  cardContent: {
-    flex: 1,
-  },
-  doctorName: {
-    fontWeight: 'bold',
+  appointmentDoctor: {
     fontSize: 16,
+    fontWeight: 'bold',
+    color: '#003366',
   },
-  specialty: {
-    color: '#666',
+  appointmentDate: {
     fontSize: 14,
-  },
-  date: {
     color: '#666',
-    fontSize: 12,
-  },
-  button: {
-    padding: 10,
-    borderRadius: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 10,
   },
   cancelButton: {
     backgroundColor: '#FF6347',
+    padding: 10,
+    borderRadius: 5,
+    alignSelf: 'flex-start',
   },
-  rescheduleButton: {
-    backgroundColor: '#4A90E2',
-  },
-  buttonText: {
+  cancelButtonText: {
     color: '#fff',
-    fontSize: 12,
     fontWeight: 'bold',
   },
-  tabBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    paddingVertical: 10,
-  },
-  tabItem: {
-    fontSize: 12,
+  noAppointmentsText: {
     color: '#666',
-  },
-  activeTab: {
-    color: '#4A90E2',
-    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 10,
   },
 });

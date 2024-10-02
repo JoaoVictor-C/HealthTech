@@ -1,24 +1,128 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Image, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { CheckBox } from 'react-native-elements';
 import { useRouter } from 'expo-router';
+import { useDatabase } from './database/useDatabase';
+import { useSQLiteContext } from 'expo-sqlite';
 
+/**
+ * Login component handles user authentication and registration.
+ */
 export default function App() {
   const router = useRouter();
+  const { registerUser, loginUser } = useDatabase();
   const [currentPage, setCurrentPage] = useState('login');
   const [selectedPlan, setSelectedPlan] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  // Registration Form 1 State
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [repeatPassword, setRepeatPassword] = useState('');
+
+  // Registration Form 2 State
+  const [cep, setCep] = useState('');
+  const [endereco, setEndereco] = useState('');
+  const [numero, setNumero] = useState('');
+  const [complemento, setComplemento] = useState('');
+  const [telefone, setTelefone] = useState('');
+
+  const [isEnderecoDisabled, setIsEnderecoDisabled] = useState(false);
+  const [isComplementoDisabled, setIsComplementoDisabled] = useState(false);
+
+  const db = useSQLiteContext();
+
+  /**
+   * Handles user login.
+   */
+  const handleLogin = async () => {
+    try {
+      const user = await loginUser(username, password);
+      if (user) {
+        router.push('/');
+      } else {
+        Alert.alert('Erro', 'Nome de usuário ou senha inválidos');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Ocorreu um erro durante o login');
+      console.error(error);
+    }
+  };
+
+  /**
+   * Handles user registration.
+   */
+  const handleRegister = async () => {
+    if (password !== repeatPassword) {
+      Alert.alert('Erro', 'As senhas não coincidem');
+      return;
+    }
+    if (!selectedPlan) {
+      Alert.alert('Erro', 'Selecione um plano de saúde');
+      return;
+    }
+    try {
+      Alert.alert(
+        'Dados de Registro',
+        `Usuário: ${username}\nSenha: ${password}\nNome: ${name}\nEmail: ${email}\nEndereço: ${endereco}\nNúmero: ${numero}\nComplemento: ${complemento}\nCEP: ${cep}\nTelefone: ${telefone}\nPlano: ${selectedPlan}`
+      );
+
+      // Using a transaction to ensure all operations succeed or fail together
+      await db.withTransactionAsync(async () => {
+        await registerUser(username, password, name, email, endereco, numero, complemento, cep, telefone, selectedPlan);
+      });
+
+      Alert.alert('Sucesso', 'Usuário registrado com sucesso');
+      setCurrentPage('login');
+    } catch (error) {
+      Alert.alert('Erro', 'Falha no registro');
+      console.error(error);
+    }
+  };
+
+  /**
+   * Fetches address information based on CEP.
+   */
+  const fetchCep = async () => {
+    const cleanedCep = cep.replace(/\D/g, '');
+    if (cleanedCep.length !== 8) {
+      Alert.alert('Erro', 'CEP inválido');
+      return;
+    }
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanedCep}/json/`);
+      const data = await response.json();
+      if (data.erro) {
+        Alert.alert('Erro', 'CEP não encontrado');
+        return;
+      }
+      if (!endereco) {
+        setEndereco(data.logradouro || '');
+        setIsEnderecoDisabled(true);
+      }
+      if (!complemento) {
+        setComplemento(data.complemento || '');
+        setIsComplementoDisabled(true);
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível buscar o CEP');
+      console.error(error);
+    }
+  };
 
   const renderLoginForm = () => (
     <>
       <Text style={styles.title}>Faça login em sua conta</Text>
       
       <View style={styles.inputContainer}>
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>Usuário</Text>
         <TextInput
           style={styles.input}
-          placeholder="Insira seu endereço de email"
-          keyboardType="email-address"
+          placeholder="Insira seu usuário"
+          value={username}
+          onChangeText={setUsername}
         />
       </View>
       
@@ -28,10 +132,12 @@ export default function App() {
           style={styles.input}
           placeholder="Insira sua senha"
           secureTextEntry
+          value={password}
+          onChangeText={setPassword}
         />
       </View>
       
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/')}>
+      <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>Entrar</Text>
       </TouchableOpacity>
       
@@ -57,6 +163,8 @@ export default function App() {
         <TextInput
           style={styles.input}
           placeholder="Digite seu nome completo"
+          value={name}
+          onChangeText={setName}
         />
       </View>
       
@@ -66,6 +174,8 @@ export default function App() {
           style={styles.input}
           placeholder="Insira seu endereço de email"
           keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
         />
       </View>
       
@@ -75,6 +185,8 @@ export default function App() {
           style={styles.input}
           placeholder="Insira sua senha"
           secureTextEntry
+          value={password}
+          onChangeText={setPassword}
         />
       </View>
       
@@ -84,6 +196,8 @@ export default function App() {
           style={styles.input}
           placeholder="Insira sua senha"
           secureTextEntry
+          value={repeatPassword}
+          onChangeText={setRepeatPassword}
         />
       </View>
       
@@ -107,6 +221,9 @@ export default function App() {
           style={styles.input}
           placeholder="Insira seu CEP"
           keyboardType="numeric"
+          value={cep}
+          onChangeText={setCep}
+          onBlur={fetchCep}
         />
       </View>
       
@@ -115,6 +232,9 @@ export default function App() {
         <TextInput
           style={styles.input}
           placeholder="Insira seu endereço"
+          value={endereco}
+          onChangeText={setEndereco}
+          editable={!isEnderecoDisabled}
         />
       </View>
       
@@ -124,6 +244,8 @@ export default function App() {
           style={styles.input}
           placeholder="Insira seu número"
           keyboardType="numeric"
+          value={numero}
+          onChangeText={setNumero}
         />
       </View>
       
@@ -132,6 +254,9 @@ export default function App() {
         <TextInput
           style={styles.input}
           placeholder="Insira seu complemento"
+          value={complemento}
+          onChangeText={setComplemento}
+          editable={!isComplementoDisabled}
         />
       </View>
       
@@ -141,6 +266,8 @@ export default function App() {
           style={styles.input}
           placeholder="(00) 00000-0000"
           keyboardType="phone-pad"
+          value={telefone}
+          onChangeText={setTelefone}
         />
       </View>
       
@@ -163,14 +290,14 @@ export default function App() {
         <Text style={styles.title}>Para finalizar, qual seu plano de saúde?</Text>
         
         <View style={styles.checkboxContainer}>
-          <Text style={styles.subtitle}>Selecione os planos:</Text>
+          <Text style={styles.subtitle}>Selecione um plano:</Text>
           {plans.map((plan) => (
             <CheckBox
               key={plan}
               title={plan}
               checked={selectedPlan === plan}
               onPress={() => setSelectedPlan(plan)}
-              containerStyle={styles.checkboxContainer}
+              containerStyle={styles.checkboxContainerItem}
               textStyle={styles.checkboxText}
               checkedColor="#003366"
             />
@@ -181,7 +308,7 @@ export default function App() {
           <TouchableOpacity style={styles.secondaryButton} onPress={() => setCurrentPage('registration2')}>
             <Text style={styles.secondaryButtonText}>Voltar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={() => setCurrentPage('login')}>
+          <TouchableOpacity style={styles.button} onPress={handleRegister}>
             <Text style={styles.buttonText}>Cadastrar!</Text>
           </TouchableOpacity>
         </View>
@@ -205,6 +332,7 @@ export default function App() {
     </ScrollView>
   );
 }
+
 
 const styles = StyleSheet.create({
   scrollContainer: {
@@ -260,10 +388,12 @@ const styles = StyleSheet.create({
   forgotPassword: {
     marginTop: 15,
     color: '#003366',
+    textAlign: 'center',
   },
   signupContainer: {
     flexDirection: 'row',
     marginTop: 20,
+    justifyContent: 'center',
   },
   signupText: {
     fontSize: 16,
@@ -290,6 +420,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     width: '100%',
     alignItems: 'center',
+    marginBottom: 10,
   },
   secondaryButtonText: {
     color: '#003366',
@@ -305,7 +436,14 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     padding: 0,
     marginLeft: 0,
-    alignItems: 'left',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  checkboxContainerItem: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    margin: 0,
     width: '100%',
   },
   checkboxText: {
